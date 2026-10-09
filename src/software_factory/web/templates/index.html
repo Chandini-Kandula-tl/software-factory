@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row"><h1 class="grow">Projects</h1><a class="button primary" href="/new">+ New project</a></div>
+{% if not projects %}
+  <div class="card">
+    <p>No projects yet. Describe an app idea and the factory will ask questions, design it,
+    write and test the code, and ask for your approval at each important step.</p>
+    <a class="button primary" href="/new">Create your first project</a>
+  </div>
+{% else %}
+<div class="card">
+  <table>
+    <tr><th>Project</th><th>Status</th><th>Type</th><th>Created</th></tr>
+    {% for p in projects %}
+    <tr>
+      <td><a href="/p/{{ p.project_id }}">{{ p.name }}</a></td>
+      <td>{% if p.folder_missing %}<span class="badge bad">Folder missing</span>
+          {% elif p.project_id in running %}<span class="badge"><span class="spinner"></span>Working</span>
+          {% else %}{% with status=p.lifecycle_status %}{% include "_status_badge.html" %}{% endwith %}{% endif %}
+          <span class="muted"> {{ p.lifecycle_status.replace("_", " ").lower() }}</span></td>
+      <td class="muted">{{ "existing code" if p.mode.value == "existing" else "new app" }}</td>
+      <td class="muted">{{ p.created_at[:16].replace("T", " ") }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

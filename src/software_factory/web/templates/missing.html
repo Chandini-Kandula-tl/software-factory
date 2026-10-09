@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} · Software Factory{% endblock %}
+{% block content %}
+<h1>{{ p.name }}</h1>
+<div class="notice warn"><strong>{{ error }}</strong><br>The project's folder was removed outside the factory, so it cannot continue.</div>
+<form class="card" method="post" action="/p/{{ p.project_id }}/delete" onsubmit="return confirm('Remove {{ p.name }} from the project list?')">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <p>Remove it from the project list. Nothing else is deleted{% if p.repository_path %} — your repository is not touched{% endif %}.</p>
+  <button class="danger">Remove from the list</button>
+</form>
+{% endblock %}

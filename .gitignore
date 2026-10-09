@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Factory runtime data (projects, logs, databases)
+factory-workspace/
+runtime/
+*.sqlite
+*.db
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

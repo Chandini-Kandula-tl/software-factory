@@ -1,0 +1,7 @@
+{%- set st = status -%}
+{%- if st == "COMPLETED" -%}<span class="badge ok">Completed</span>
+{%- elif st == "FAILED" -%}<span class="badge bad">Needs attention</span>
+{%- elif st == "CANCELLED" -%}<span class="badge">Cancelled</span>
+{%- elif st.startswith("WAITING_FOR") -%}<span class="badge warn">Waiting for you</span>
+{%- else -%}<span class="badge">{{ st.replace("_", " ").title() }}</span>
+{%- endif -%}

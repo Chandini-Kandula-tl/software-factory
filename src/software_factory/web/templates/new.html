@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}New project · Software Factory{% endblock %}
+{% block content %}
+<h1>New project</h1>
+{% if error %}<div class="notice bad"><strong>{{ error }}</strong>{% if error.hint %}<br>{{ error.hint }}{% endif %}</div>{% endif %}
+<form class="card" method="post" action="/new">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="name">Project name</label>
+  <input type="text" id="name" name="name" required value="{{ form.name or '' }}" placeholder="e.g. Todo App">
+  <label for="requirements">What should it do? <span class="hint">Plain words are fine — the factory will ask about anything important that is missing.</span></label>
+  <textarea id="requirements" name="requirements" required rows="7" placeholder="e.g. Build a todo application. Users can add tasks, mark them done, delete them and see their list.">{{ form.requirements or '' }}</textarea>
+  <label for="repository">Existing code folder <span class="hint">(optional — leave empty for a new app; the factory works on its own branch and never touches your main branch)</span></label>
+  <input type="text" id="repository" name="repository" value="{{ form.repository or '' }}" placeholder="/Users/you/projects/my-app">
+  <p class="row"><button class="primary" name="start" value="1">Create and start</button>
+     <button name="start" value="">Create only</button></p>
+</form>
+{% endblock %}

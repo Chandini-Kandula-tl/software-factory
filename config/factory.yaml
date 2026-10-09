@@ -1,0 +1,90 @@
+# Software Factory configuration.
+# Relative paths resolve against the directory containing this file.
+# Never put secrets here: cloud providers name an environment variable instead.
+
+factory:
+  environment: local
+  workspace: ../factory-workspace   # projects/, logs/, factory.db
+  prompts_dir: ../prompts
+
+orchestrator:
+  type: langgraph
+
+providers:
+  ollama:
+    type: ollama
+    enabled: true
+    base_url: http://localhost:11434
+    timeout_seconds: 600          # local models can be slow on large prompts
+
+  # Any OpenAI-compatible server or API works by configuration only
+  # (docs/models/model_configuration.md). Examples — enable one, add a model
+  # under `models` that uses it, and point a profile at that model:
+  #
+  # lmstudio:                            # local, no key
+  #   type: openai_compatible
+  #   base_url: http://localhost:1234/v1
+  #
+  # deepseek:                            # cloud; key read from the environment
+  #   type: openai_compatible
+  #   base_url: https://api.deepseek.com/v1
+  #   api_key_env: DEEPSEEK_API_KEY
+  #   options:
+  #     structured_output: json_object   # json_schema (default) | json_object | prompt
+
+# Model names are configuration, never code. Pick models that fit your
+# machine (docs/models/model_selection.md) and `ollama pull` them.
+# Current setup: qwen2.5:14b for thinking/planning agents, qwen2.5-coder:14b for
+# the coding agents. Start Ollama with OLLAMA_MAX_LOADED_MODELS=1 so only one
+# model is in memory at a time (~15 GB at 32k context).
+models:
+  local_model:
+    provider: ollama
+    model: qwen2.5:14b               # ~9 GB; use qwen2.5:7b on machines with < 16 GB RAM
+    capabilities: [reasoning, coding, structured_output]
+    context_window: 32768
+    options:
+      num_ctx: 32768                 # room for source code in build-phase prompts
+
+  local_coder:
+    provider: ollama
+    model: qwen2.5-coder:14b         # trained on code; ~9 GB
+    capabilities: [coding, structured_output]
+    context_window: 32768
+    options:
+      num_ctx: 32768
+
+profiles:
+  reasoning:                       # Requirement, Architecture, Technology, Planning, Impact agents
+    preferred_model: local_model
+    required_capabilities: [reasoning]
+    temperature: 0.1
+  coding:                          # Coding, Testing and Code Review agents
+    preferred_model: local_coder
+    fallback_models: [local_model]   # qwen2.5:14b if the coder model is unavailable
+    required_capabilities: [coding]
+    temperature: 0.2               # a little variety helps when several fixes are tried
+
+persistence:
+  type: sqlite                    # factory.db + per-project checkpoint files
+
+limits:
+  max_agent_retries: 2            # retries per model on transient errors
+  max_structured_output_repairs: 2
+  max_clarification_rounds: 5
+  max_debug_iterations: 5         # fix attempts per failing build/test before asking a human
+  max_review_rounds: 2            # code-review / security fix rounds
+  fix_candidates: 3               # fixes tried per round; first one that really passes is kept
+  max_context_chars: 40000        # source code shown to build-phase agents per call
+  retry_backoff_seconds: 2
+
+security:
+  shell_enabled: true
+  network_enabled: false
+  # Programs the factory may run for a project (setup, lint, build, test...).
+  # sh/bash/zsh/sudo/su/rm/curl/wget are always refused.
+  allowed_commands: [git, python, python3, pip, pytest, ruff, uv, node, npm, npx]
+  command_timeout_seconds: 600
+
+logging:
+  level: INFO

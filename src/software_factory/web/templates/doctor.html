@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Health check · Software Factory{% endblock %}
+{% block content %}
+<div class="row"><h1 class="grow">Health check</h1>
+  {% if not probe %}<a class="button" href="/doctor?probe=1">Also test the models (slower)</a>{% endif %}</div>
+<div class="card">
+<table>
+  <tr><th>Check</th><th>Result</th><th>Detail</th></tr>
+  {% for r in results %}
+  <tr><td>{{ r.name }}</td>
+      <td>{% if r.status.value == "PASS" %}<span class="badge ok">PASS</span>{% elif r.status.value == "FAIL" %}<span class="badge bad">FAIL</span>{% elif r.status.value == "WARN" %}<span class="badge warn">WARN</span>{% else %}<span class="badge">{{ r.status.value }}</span>{% endif %}</td>
+      <td>{{ r.detail }}{% if r.hint %}<br><span class="muted">→ {{ r.hint }}</span>{% endif %}</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

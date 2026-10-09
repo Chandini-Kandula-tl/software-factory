@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} · Software Factory{% endblock %}
+{% block content %}
+<div class="row">
+  <h1 class="grow">{{ p.name }}{% if s.version > 1 %} <span class="badge">version {{ s.version }}</span>{% endif %}</h1>
+  {% if running %}<span class="badge"><span class="spinner"></span>Working</span>
+  {% else %}{% with status=s.lifecycle_status %}{% include "_status_badge.html" %}{% endwith %}{% endif %}
+</div>
+<div class="stages">
+  {% for key, label in stages %}<span class="stage {{ 'done' if key in s.completed_stages }}">{{ '✓ ' if key in s.completed_stages }}{{ label }}</span>{% endfor %}
+</div>
+{% if s.development and s.development.get('task_queue') is not none %}
+  {% set done = s.development.get('completed_tasks', [])|length %}{% set total = done + s.development.get('task_queue', [])|length %}
+  <p class="muted">Tasks: {{ done }} of {{ total }} done{% if s.development.get('task_queue') %} · next: {{ s.development.task_queue[0] }}{% endif %}</p>
+{% endif %}
+
+<div class="layout">
+<section>
+{% if s.update_request and s.lifecycle_status != "COMPLETED" %}
+  <div class="notice"><strong>Updating to version {{ s.version }}:</strong> {{ s.update_request.change }}</div>
+{% endif %}
+{% if job and job.error and not running %}
+  <div class="notice bad"><strong>The last action ({{ job.action }}) stopped:</strong> {{ job.error }}{% if job.hint %}<br><span class="muted">{{ job.hint }}</span>{% endif %}</div>
+{% endif %}
+{% if s.project.paused %}<div class="notice warn">Paused. A running step finishes first; press <em>Continue</em> to resume.</div>{% endif %}
+
+{% if running %}
+  <div class="card" id="live">
+    <h2 style="margin-top:0"><span class="spinner"></span>{{ job.action }}…</h2>
+    <p class="muted">The factory is working. Local models can take a few minutes per step — this page updates by itself. You can close it; the work continues.</p>
+    <p><strong>Now:</strong> <span id="now">{{ activity[0].summary if activity else '' }}</span></p>
+    <form method="post" action="/p/{{ p.project_id }}/pause"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Pause after the current step</button></form>
+  </div>
+
+{% elif not s.started %}
+  <form class="card" method="post" action="/p/{{ p.project_id }}/start">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h2 style="margin-top:0">Ready to start</h2>
+    <label for="requirements">Requirements</label>
+    <textarea id="requirements" name="requirements" rows="6">{{ requirements_input or '' }}</textarea>
+    <p><button class="primary">Start</button></p>
+  </form>
+
+{% elif s.waiting_for == "clarification" %}
+  <form class="card" method="post" action="/p/{{ p.project_id }}/answers">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h2 style="margin-top:0">A few questions before designing</h2>
+    <p class="muted">Required questions must be answered. Your answers become part of the requirements.</p>
+    {% for q in questions %}
+      <div class="question">
+        <label for="a_{{ q.id }}">{{ q.id }}. {{ q.question }} {% if q.required %}<span class="badge warn">required</span>{% else %}<span class="badge">optional</span>{% endif %}</label>
+        {% if q.reason %}<div class="hint">Why: {{ q.reason }}</div>{% endif %}
+        <textarea id="a_{{ q.id }}" name="answer_{{ q.id }}" rows="2" {{ 'required' if q.required }}>{{ (answers.get(q.id) or {}).get('answer', '') }}</textarea>
+      </div>
+    {% endfor %}
+    <p><button class="primary">Submit answers</button></p>
+  </form>
+
+{% elif s.waiting_for == "approval" and approval %}
+  <div class="card">
+    <h2 style="margin-top:0">{{ approval_title }}</h2>
+    {% if approval.stage == "implementation_plan" and s.plan_checks %}
+      <div class="notice warn"><strong>These commands cannot run on this computer:</strong><ul>{% for c in s.plan_checks %}<li>{{ c }}</li>{% endfor %}</ul>Reject the plan with what to change, or install the programs first.</div>
+    {% endif %}
+    {% if approval.stage == "release" %}<p class="muted">Also check <a href="/p/{{ p.project_id }}/doc/review.md">code review</a>, <a href="/p/{{ p.project_id }}/doc/security.md">security</a> and <a href="/p/{{ p.project_id }}/doc/test-results.md">test results</a>, and try the code (<a href="/p/{{ p.project_id }}/download">download</a>).</p>{% endif %}
+    <div class="doc">{{ artifact_html|safe if artifact_html else '<p class="muted">Document not found.</p>'|safe }}</div>
+  </div>
+  <div class="card">
+    <form method="post" action="/p/{{ p.project_id }}/approve" class="row">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="stage" value="{{ approval.stage }}">
+      <button class="primary">Approve</button><span class="muted">and continue to the next step</span>
+    </form>
+    <form method="post" action="/p/{{ p.project_id }}/reject">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="stage" value="{{ approval.stage }}">
+      <label for="reason">Or reject — what should change?</label>
+      <textarea id="reason" name="reason" rows="3" required placeholder="e.g. Add a command-line entry point; use only the standard library"></textarea>
+      <p><button class="danger">Reject and revise</button></p>
+    </form>
+  </div>
+
+{% elif s.lifecycle_status == "FAILED" or s.waiting_for == "failure" %}
+  <div class="card">
+    <h2 style="margin-top:0">The factory needs your help</h2>
+    {% if s.failure %}<div class="notice bad"><strong>{{ s.failure.stage }}:</strong> {{ s.failure.message }}{% if s.failure.hint %}<br><span class="muted">{{ s.failure.hint }}</span>{% endif %}</div>{% endif %}
+    <p class="muted">See <a href="/p/{{ p.project_id }}/doc/test-results.md">test results</a> and <a href="/p/{{ p.project_id }}/doc/test-analysis.md">the failure analysis</a> if available.</p>
+    <form method="post" action="/p/{{ p.project_id }}/retry">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="hint">Guidance for the AI <span class="hint">(optional — what you think the real problem is)</span></label>
+      <textarea id="hint" name="hint" rows="3" placeholder="e.g. JSON keys come back as strings; convert ids with int() when loading"></textarea>
+      <p class="row"><button class="primary">Retry</button></p>
+    </form>
+    <form method="post" action="/p/{{ p.project_id }}/cancel" onsubmit="return confirm('Cancel this project? It cannot be resumed.')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Cancel project</button>
+    </form>
+  </div>
+
+{% elif s.lifecycle_status == "COMPLETED" %}
+  <div class="notice ok"><strong>Released.</strong> The app is finished and tagged in its repository.</div>
+  <div class="card">
+    <p class="row"><a class="button primary" href="/p/{{ p.project_id }}/download">Download the app (.zip)</a>
+    <span class="muted">Code folder: <code>{{ s.development.get('source_path', '') }}</code></span></p>
+    <div class="doc">{{ completed_html|safe if completed_html }}</div>
+  </div>
+  <form class="card" method="post" action="/p/{{ p.project_id }}/update">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h2 style="margin-top:0">Update this app</h2>
+    <p class="muted">Describe what to add or change. The factory updates the requirements, design and plan for the change (you approve each again), then codes, tests, reviews and releases version {{ s.version + 1 }} on the same code.</p>
+    <label for="change">What should change?</label>
+    <textarea id="change" name="change" rows="4" required placeholder="e.g. Add a due date to each task and a command to list overdue tasks"></textarea>
+    <p><button class="primary">Start the update</button></p>
+  </form>
+
+{% elif s.lifecycle_status == "CANCELLED" %}
+  <div class="notice">This project was cancelled.</div>
+
+{% else %}
+  <div class="card">
+    <h2 style="margin-top:0">Ready to continue</h2>
+    <p class="muted">{{ s.pending_action }}</p>
+    <form method="post" action="/p/{{ p.project_id }}/continue"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Continue</button></form>
+  </div>
+{% endif %}
+</section>
+
+<aside>
+  <div class="card">
+    <h2 style="margin-top:0">Documents</h2>
+    {% if documents %}<ul class="docs">{% for d in documents %}<li><a href="/p/{{ p.project_id }}/doc/{{ d }}">{{ d.removesuffix('.md').replace('-', ' ').capitalize() }}</a></li>{% endfor %}</ul>
+    {% else %}<p class="muted">None yet.</p>{% endif %}
+  </div>
+  {% if s.versions %}
+  <div class="card">
+    <h2 style="margin-top:0">Earlier versions</h2>
+    <ul class="docs">{% for v in s.versions|reverse %}<li><a href="/p/{{ p.project_id }}/doc/release-notes.md?version={{ v.version }}">Version {{ v.version }}</a>{% if v.tag %} <span class="muted">· {{ v.tag }}</span>{% endif %}{% if v.change %}<div class="hint">{{ v.change }}</div>{% endif %}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {% if not running %}
+  <form class="card" method="post" action="/p/{{ p.project_id }}/delete"
+        onsubmit="return confirm('Delete project {{ p.name }}? This removes its documents, history{{ '' if p.repository_path else ' and the generated code' }}. It cannot be undone.')">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h2 style="margin-top:0">Delete project</h2>
+    <p class="muted">{% if p.repository_path %}Removes the factory's files for this project; your repository is not touched.{% else %}Removes the project, including the generated code. Download it first if you want to keep it.{% endif %}</p>
+    <button class="danger">Delete project</button>
+  </form>
+  {% endif %}
+  <div class="card">
+    <h2 style="margin-top:0">Recent activity</h2>
+    <ul class="activity">{% for a in activity %}<li><span class="muted">{{ a.started_at[11:16] }}</span> {{ a.summary }}</li>{% else %}<li class="muted">Nothing yet.</li>{% endfor %}</ul>
+    <a href="/p/{{ p.project_id }}/history">Full history →</a>
+  </div>
+</aside>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if running %}
+<script>
+  // Poll the status while a background action runs; reload when something changes.
+  (function () {
+    const initial = {{ s.lifecycle_status|tojson }};
+    async function poll() {
+      try {
+        const r = await fetch("/p/{{ p.project_id }}/status.json", {cache: "no-store"});
+        const d = await r.json();
+        document.getElementById("now").textContent = d.activity;
+        if (!d.running || d.lifecycle_status !== initial) { location.reload(); return; }
+      } catch (e) { /* server restarting — try again */ }
+      setTimeout(poll, 3000);
+    }
+    setTimeout(poll, 3000);
+  })();
+</script>
+{% endif %}
+{% endblock %}

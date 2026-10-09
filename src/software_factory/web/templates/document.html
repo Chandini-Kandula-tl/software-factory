@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · {{ p.name }}{% endblock %}
+{% block content %}
+{% set q = '?version=' ~ doc_version if doc_version else '' %}
+<p><a href="/p/{{ p.project_id }}">← {{ p.name }}</a>{% if doc_version %} <span class="badge">version {{ doc_version }} (earlier release)</span>{% endif %}</p>
+<div class="layout">
+  <div class="card doc">{{ html|safe }}</div>
+  <aside><div class="card"><h2 style="margin-top:0">Documents{% if doc_version %} · v{{ doc_version }}{% endif %}</h2><ul class="docs">
+    {% for d in documents %}<li>{% if d == name %}<strong>{{ d.removesuffix('.md').replace('-', ' ').capitalize() }}</strong>{% else %}<a href="/p/{{ p.project_id }}/doc/{{ d }}{{ q }}">{{ d.removesuffix('.md').replace('-', ' ').capitalize() }}</a>{% endif %}</li>{% endfor %}
+  </ul></div></aside>
+</div>
+{% endblock %}

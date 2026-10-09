@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}History · {{ p.name }}{% endblock %}
+{% block content %}
+<p><a href="/p/{{ p.project_id }}">← {{ p.name }}</a></p>
+<h1>What happened</h1>
+<div class="card" style="overflow-x:auto">
+<table>
+  <tr><th>Time</th><th>Kind</th><th>Stage</th><th>Result</th><th>Who</th><th>Summary</th></tr>
+  {% for e in entries %}
+  <tr>
+    <td class="muted">{{ e.started_at[:19].replace("T", " ") }}</td>
+    <td>{{ e.kind }}</td><td>{{ e.stage }}</td>
+    <td>{% if e.status == "success" %}<span class="badge ok">ok</span>{% elif e.status == "failed" %}<span class="badge bad">failed</span>{% else %}<span class="badge">info</span>{% endif %}</td>
+    <td class="muted">{{ e.agent or '' }}{% if e.model %}<br>{{ e.model }}{% endif %}</td>
+    <td>{{ e.summary }}{% if e.error %}<br><span class="muted">{{ e.error }}</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}
